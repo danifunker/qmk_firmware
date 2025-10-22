@@ -1,0 +1,80 @@
+From 3c7f4e7014e008d65a419dece96d7ceda5858b91 Mon Sep 17 00:00:00 2001
+From: Dani Sarfati <dani@funkervogt.com>
+Date: Wed, 22 Oct 2025 07:58:51 -0400
+Subject: [PATCH] first attempt at getting os9 buttons support
+
+---
+ .../keychron/v6/ansi/keymaps/default/keymap.c | 34 ++++++++++++++++++-
+ keyboards/keychron/v6/ansi/rules.mk           |  2 ++
+ 2 files changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/keyboards/keychron/v6/ansi/keymaps/default/keymap.c b/keyboards/keychron/v6/ansi/keymaps/default/keymap.c
+index 05ac05356c..06be6f4575 100644
+--- a/keyboards/keychron/v6/ansi/keymaps/default/keymap.c
++++ b/keyboards/keychron/v6/ansi/keymaps/default/keymap.c
+@@ -16,9 +16,18 @@
+ 
+ #include "keycode.h"
+ #include QMK_KEYBOARD_H
++#include "raw_hid.h"
+ 
+ // clang-format off
+ 
++
++// --- Helper to send Apple-style 5-byte reports ---
++static void send_apple_special(uint8_t code) {
++    // 0x03 = modifier bits (LCTRL + LSHIFT)
++    uint8_t report[5] = {0x03, code, 0x00, 0x00, 0x00};
++    raw_hid_send(report, sizeof(report));
++}
++
+ enum layers{
+   MAC_BASE,
+   MAC_FN,
+@@ -29,9 +38,32 @@ enum layers{
+ #define KC_TASK LGUI(KC_TAB)
+ #define KC_FLXP LGUI(KC_E)
+ 
++
++// --- Custom keycodes ---
++enum custom_keycodes {
++    MAC_EJECT = SAFE_RANGE,
++    MAC_VOLDN,
++    MAC_VOLUP,
++    MAC_MUTE,
++};
++
++// --- Main process hook ---
++bool process_record_user(uint16_t keycode, keyrecord_t *record) {
++    // Only send special reports when on Mac layer (layer 0)
++    if (layer_state_is(0) && record->event.pressed) {
++        switch (keycode) {
++            case MAC_EJECT: send_apple_special(0x04); return false;
++            case MAC_VOLDN: send_apple_special(0x40); return false;
++            case MAC_VOLUP: send_apple_special(0x08); return false;
++            case MAC_MUTE:  send_apple_special(0x80); return false;
++        }
++    }
++    return true;
++}
++
+ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+     [MAC_BASE] = LAYOUT_ansi_108(
+-        KC_ESC,             KC_BRID,  KC_BRIU,  KC_NO,    KC_NO,    RM_VALD,  RM_VALU,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,    KC_VOLU,  KC_NO,    KC_NO,    RM_NEXT,  KC_F13,   KC_F14,   KC_F15,   KC_F16,
++        KC_ESC,             KC_BRID,  KC_BRIU,  KC_NO,    KC_NO,    RM_VALD,  RM_VALU,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,    KC_VOLU,  KC_NO,    KC_NO,    RM_NEXT,  MAC_VOLDN, MAC_VOLUP, MAC_MUTE, MAC_EJECT,
+         KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,  KC_NUM,   KC_PSLS,  KC_PAST,  KC_PMNS,
+         KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,    KC_BSLS,  KC_DEL,   KC_END,   KC_PGDN,  KC_P7,    KC_P8,    KC_P9,
+         KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,              KC_ENT,                                 KC_P4,    KC_P5,    KC_P6,    KC_PPLS,
+diff --git a/keyboards/keychron/v6/ansi/rules.mk b/keyboards/keychron/v6/ansi/rules.mk
+index 3652da4b69..6a3039720e 100644
+--- a/keyboards/keychron/v6/ansi/rules.mk
++++ b/keyboards/keychron/v6/ansi/rules.mk
+@@ -2,3 +2,5 @@
+ CUSTOM_MATRIX = lite
+ 
+ SRC += matrix.c
++
++RAW_ENABLE = yes
+-- 
+2.50.1 (Apple Git-155)
+
